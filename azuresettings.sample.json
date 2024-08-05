@@ -1,0 +1,10 @@
+{
+  "Azure": {
+    "CosmosDb": {
+      "Key": "<your-CosmosDb-key>",
+      "Endpoint": "<your-CosmosDb-Endpoint",
+      "DatabaseId": "ToDoList",
+      "ContainerId": "Items"
+    }
+  }
+}
