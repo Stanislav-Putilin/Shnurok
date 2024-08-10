@@ -1,6 +1,7 @@
 using shnurok.Services.CosmosDb;
 using shnurok.Services.Hash;
 using shnurok.Services.Kdf;
+using shnurok.Services.Token;
 
 namespace shnurok
 {
@@ -22,6 +23,7 @@ namespace shnurok
 			builder.Services.AddSingleton<IContainerProvider, NoSqlContainerProvider>();
 			builder.Services.AddSingleton<IHashService, Sha1HashService>();
 			builder.Services.AddSingleton<IKdfService, Pbkdf1Service>();
+			builder.Services.AddScoped<ITokenService, TokenService>();
 
 			var app = builder.Build();
 
