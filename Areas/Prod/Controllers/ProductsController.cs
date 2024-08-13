@@ -58,6 +58,50 @@ namespace shnurok.Areas.Prod.Controllers
 			return restResponse;
 		}
 
+		[HttpGet("product/{productId}")]
+		public async Task<RestResponse> GetProductById(string productId)
+		{
+			var restResponse = new RestResponse
+			{
+				meta = new Dictionary<string, object>
+				{
+					{ "endpoint", $"api/prod/product/{productId}" },
+					{ "time", DateTime.Now.Ticks },
+				}
+			};
+
+			var query = new QueryDefinition("SELECT p.productId, p.name, p.description, p.price, p.discount, p.category, p.stockQuantity, p.images, p.tags FROM p WHERE p.productId = @productId AND p.partitionKey = 'products'")
+							.WithParameter("@productId", productId);
+			var container = await _containerProvider.GetContainerAsync();
+
+			using (FeedIterator<Product> resultSet = container.GetItemQueryIterator<Product>(query))
+			{
+				var products = new List<Product>();
+
+				while (resultSet.HasMoreResults)
+				{
+					FeedResponse<Product> response = await resultSet.ReadNextAsync();
+					products.AddRange(response);
+				}
+
+				if (products.Count == 1)
+				{
+					restResponse.status = new Status { code = 0, message = "Продукт найден" };
+					restResponse.data = products.First();
+				}
+				else if (products.Count == 0)
+				{
+					restResponse.status = new Status { code = 6, message = "Продукт не найден" };
+				}
+				else
+				{
+					restResponse.status = new Status { code = 7, message = "Найдено несколько продуктов с одинаковым идентификатором" };
+				}
+			}
+
+			return restResponse;
+		}
+
 		[HttpGet("categoryproducts/{categoryId}")]
 		public async Task<RestResponse> GetProductsByCategory(string categoryId)
 		{
