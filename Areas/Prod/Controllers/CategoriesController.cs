@@ -72,5 +72,49 @@ namespace shnurok.Areas.Prod.Controllers
 
 			return restResponse;
 		}
+
+		[HttpGet("categories/{categoryId}")]
+		public async Task<RestResponse> GetCategoryById(string categoryId)
+		{
+			var restResponse = new RestResponse
+			{
+				meta = new Dictionary<string, object>
+		{
+			{ "endpoint", $"api/prod/categories/{categoryId}" },
+			{ "time", DateTime.Now.Ticks },
+		}
+			};
+
+			var query = new QueryDefinition("SELECT c.categoryId, c.name, c.description FROM c WHERE c.categoryId = @categoryId AND c.partitionKey = 'categories'")
+							.WithParameter("@categoryId", categoryId);
+			var container = await _containerProvider.GetContainerAsync();
+
+			using (FeedIterator<Category> resultSet = container.GetItemQueryIterator<Category>(query))
+			{
+				var categories = new List<Category>();
+
+				while (resultSet.HasMoreResults)
+				{
+					FeedResponse<Category> response = await resultSet.ReadNextAsync();
+					categories.AddRange(response);
+				}
+
+				if (categories.Count == 1)
+				{
+					restResponse.status = new Status { code = 0, message = "Категория найдена" };
+					restResponse.data = categories.First();
+				}
+				else if (categories.Count == 0)
+				{
+					restResponse.status = new Status { code = 6, message = "Категория не найдена" };
+				}
+				else
+				{
+					restResponse.status = new Status { code = 7, message = "Найдено несколько категорий с одинаковым идентификатором" };
+				}
+			}
+
+			return restResponse;
+		}
 	}
 }

@@ -102,6 +102,38 @@ namespace shnurok.Areas.Prod.Controllers
 			return restResponse;
 		}
 
+		[HttpGet("carousel")]
+		public async Task<RestResponse> GetСarousel()
+		{
+			var restResponse = new RestResponse
+			{
+				meta = new Dictionary<string, object>
+				{
+					{ "endpoint", "api/prod/carousel" },
+					{ "time", DateTime.Now.Ticks },
+				}
+			};
+
+			var imageUrls = new List<string>
+			{
+				"https://picsum.photos/1200/400?image=1",
+				"https://picsum.photos/1200/400?image=2",
+				"https://picsum.photos/1200/400?image=3",
+				"https://picsum.photos/1200/400?image=4",
+				"https://picsum.photos/1200/400?image=5",
+				"https://picsum.photos/1200/400?image=6",
+				"https://picsum.photos/1200/400?image=7",
+				"https://picsum.photos/1200/400?image=8",
+				"https://picsum.photos/1200/400?image=9",
+				"https://picsum.photos/1200/400?image=10"
+			};
+			
+			restResponse.status = new Status { code = 0, message = "Все хорошо" };
+			restResponse.data = imageUrls;			
+
+			return restResponse;
+		}
+
 		[HttpGet("categoryproducts/{categoryId}")]
 		public async Task<RestResponse> GetProductsByCategory(string categoryId)
 		{
