@@ -1,15 +1,29 @@
-﻿namespace shnurok.Areas.Prod.Models.Db
+﻿using Newtonsoft.Json;
+
+namespace shnurok.Areas.Prod.Models.Db
 {
 	public class Category
 	{
-		public string CategoryId { get; set; }
+		[JsonProperty(PropertyName = "id")]
+		public string Id { get; set; }
+
+		[JsonProperty(PropertyName = "name")]
 		public string Name { get; set; }
+
+		[JsonProperty(PropertyName = "imgUrl")]
+		public string ImgUrl { get; set; }
+
+		[JsonProperty(PropertyName = "description")]
 		public string Description { get; set; }
-				
-		public Category(string categoryId, string name, string description)
+
+		[JsonProperty(PropertyName = "partitionKey")]
+		public String PartitionKey { get; set; } = "categories";
+
+		public Category(string id, string name, string description, string imgUrl)
 		{
-			CategoryId = categoryId;
+			Id = id;
 			Name = name;
+			ImgUrl = imgUrl;
 			Description = description;
 		}
 	}

@@ -23,7 +23,7 @@ namespace shnurok.Services.Token
                 Id = _hashService.Digest(Guid.NewGuid().ToString()),
                 UserId = userId,
                 Issued = DateTime.Now,
-                Expires = DateTime.Now.AddSeconds(30.0),
+                Expires = DateTime.Now.AddMinutes(30.0),
             };
 
             ItemResponse<Models.Db.Token> response = await container.CreateItemAsync(

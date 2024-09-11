@@ -31,7 +31,7 @@ namespace shnurok.Areas.Prod.Controllers
 				}
 			};
 
-			var query = new QueryDefinition("SELECT p.productId, p.name, p.description, p.price, p.discount, p.category, p.stockQuantity, p.images, p.tags FROM p WHERE p.partitionKey = 'products'");
+			var query = new QueryDefinition("SELECT p.id, p.name, p.description, p.price, p.discount, p.category, p.stockQuantity, p.images, p.tags FROM p WHERE p.partitionKey = 'products'");
 			var container = await _containerProvider.GetContainerAsync();
 
 			using (FeedIterator<Product> resultSet = container.GetItemQueryIterator<Product>(query))
@@ -70,7 +70,7 @@ namespace shnurok.Areas.Prod.Controllers
 				}
 			};
 
-			var query = new QueryDefinition("SELECT p.productId, p.name, p.description, p.price, p.discount, p.category, p.stockQuantity, p.images, p.tags FROM p WHERE p.productId = @productId AND p.partitionKey = 'products'")
+			var query = new QueryDefinition("SELECT p.id, p.name, p.description, p.price, p.discount, p.category, p.stockQuantity, p.images, p.tags FROM p WHERE p.id = @productId AND p.partitionKey = 'products'")
 							.WithParameter("@productId", productId);
 			var container = await _containerProvider.GetContainerAsync();
 
@@ -146,7 +146,7 @@ namespace shnurok.Areas.Prod.Controllers
 				}
 			};
 
-			var query = new QueryDefinition("SELECT p.productId, p.name, p.description, p.price, p.discount, p.category, p.stockQuantity, p.images, p.tags FROM p WHERE p.partitionKey = 'products' AND p.category = @categoryId")
+			var query = new QueryDefinition("SELECT p.id, p.name, p.description, p.price, p.discount, p.category, p.stockQuantity, p.images, p.tags FROM p WHERE p.partitionKey = 'products' AND p.category = @categoryId")
 				.WithParameter("@categoryId", categoryId);
 
 			var container = await _containerProvider.GetContainerAsync();

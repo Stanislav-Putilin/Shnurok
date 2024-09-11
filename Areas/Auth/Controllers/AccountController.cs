@@ -8,6 +8,7 @@ using shnurok.Areas.Auth.Models.Form;
 using System.Text.RegularExpressions;
 using shnurok.Services.Kdf;
 using shnurok.Services.Token;
+using shnurok.Models.Db;
 
 namespace shnurok.Areas.Auth.Controllers
 {
@@ -109,8 +110,8 @@ namespace shnurok.Areas.Auth.Controllers
 					{ "time", DateTime.Now.Ticks },
 				}
 			};
-
-			QueryDefinition? queryDefinition = new($"SELECT * FROM c WHERE c.partitionKey = 'users' AND c.email = '{form.UserEmail}' ");
+			
+			QueryDefinition? queryDefinition = new QueryDefinition ($"SELECT * FROM c WHERE c.partitionKey = 'users' AND c.email = @Email").WithParameter("@Email", form.UserEmail);
 			var container = await _containerProvider.GetContainerAsync();
 
 			string emailPattern = @"^[^@\s]+@[^@\s]+\.[^@\s]+$";
@@ -153,6 +154,48 @@ namespace shnurok.Areas.Auth.Controllers
 
 				return restResponse;
 			}
+		}
+
+		[HttpPost("logout")]
+		public async Task<RestResponse> Logout()
+		{
+			RestResponse restResponse = new()
+			{
+				meta = new()
+				{
+					{ "endpoint", "api/auth/logout" },
+					{ "time", DateTime.Now.Ticks },
+				}
+			};
+						
+			if (!Request.Headers.TryGetValue("Authorization", out var tokenHeader))
+			{
+				restResponse.status = new Status { code = 5, message = "Токен не найден в заголовке" };
+				return restResponse;
+			}
+			
+			var tokenId = tokenHeader.ToString().Split(' ').Last();
+						
+			var container = await _containerProvider.GetContainerAsync();
+
+			try
+			{
+				
+				var tokenResponse = await container.ReadItemAsync<Token>(tokenId, new PartitionKey("tokens"));
+				var token = tokenResponse.Resource;
+				
+				token.Expires = DateTime.UtcNow;
+				
+				await container.ReplaceItemAsync(token, token.Id, new PartitionKey(token.PartitionKey));
+
+				restResponse.status = new Status { code = 0, message = "Токен успешно деактивирован" };
+			}
+			catch (CosmosException)
+			{
+				restResponse.status = new Status { code = 11, message = "Ошибка при обработке токена, при попытке деактивации!" };
+			}
+
+			return restResponse;
 		}
 	}
 }
