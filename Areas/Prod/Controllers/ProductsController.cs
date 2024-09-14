@@ -175,5 +175,48 @@ namespace shnurok.Areas.Prod.Controllers
 			return restResponse;
 		}
 
+		[HttpGet("search")]
+		public async Task<RestResponse> SearchProducts([FromQuery] string query)
+		{
+			var restResponse = new RestResponse
+			{
+				meta = new Dictionary<string, object>
+		{
+			{ "endpoint", "api/prod/search" },
+			{ "time", DateTime.Now.Ticks },
+		}
+			};
+
+			var sqlQuery = new QueryDefinition(
+				"SELECT p.id, p.name, p.description, p.price, p.discount, p.category, p.stockQuantity, p.images, p.tags " +
+				"FROM p WHERE p.partitionKey = 'products' " +
+				"AND (CONTAINS(p.name, @query) OR CONTAINS(p.description, @query) OR ARRAY_CONTAINS(p.tags, @query))"
+			).WithParameter("@query", query);
+
+			var container = await _containerProvider.GetContainerAsync();
+
+			using (FeedIterator<Product> resultSet = container.GetItemQueryIterator<Product>(sqlQuery))
+			{
+				var products = new List<Product>();
+
+				while (resultSet.HasMoreResults)
+				{
+					FeedResponse<Product> response = await resultSet.ReadNextAsync();
+					products.AddRange(response);
+				}
+
+				if (products.Count > 0)
+				{
+					restResponse.status = new Status { code = 0, message = "Продукты найдены" };
+					restResponse.data = products;
+				}
+				else
+				{
+					restResponse.status = new Status { code = 6, message = "Продукты не найдены" };
+				}
+			}
+
+			return restResponse;
+		}
 	}
 }
