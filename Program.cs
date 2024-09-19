@@ -23,7 +23,7 @@ namespace shnurok
 			builder.Services.AddSingleton<IContainerProvider, NoSqlContainerProvider>();
 			builder.Services.AddSingleton<IHashService, Sha1HashService>();
 			builder.Services.AddSingleton<IKdfService, Pbkdf1Service>();
-			builder.Services.AddScoped<ITokenService, TokenService>();
+			builder.Services.AddScoped<ITokenVerificationService, TokenVerificationService>();
 
 			var app = builder.Build();
 

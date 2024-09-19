@@ -12,6 +12,7 @@ using shnurok.Models.Db;
 using Azure;
 using Newtonsoft.Json.Linq;
 using System.Security.Policy;
+using shnurok.Services.Token;
 
 namespace shnurok.Areas.Prod.Controllers
 {
@@ -21,6 +22,7 @@ namespace shnurok.Areas.Prod.Controllers
 	public class CategoriesController : ControllerBase
 	{
 		private readonly IContainerProvider _containerProvider;
+		private readonly ITokenVerificationService _tokenVerificationService;
 
 		public CategoriesController(IContainerProvider containerProvider)
 		{
@@ -141,7 +143,7 @@ namespace shnurok.Areas.Prod.Controllers
 				return restResponse;
 			}
 
-			if (!await TokenIsValid(token))
+			if (!await _tokenVerificationService.TokenIsValid(token))
 			{
 				restResponse.status = new Status { code = 8, message = "Неверный или отсутствует токен" };
 				restResponse.data = token;
@@ -189,37 +191,6 @@ namespace shnurok.Areas.Prod.Controllers
 			}
 
 			return restResponse;
-		}
-
-		private async Task<bool> TokenIsValid(string token)
-		{
-			var container = await _containerProvider.GetContainerAsync();
-			
-			var query = new QueryDefinition("SELECT * FROM c WHERE c.id = @token")
-								.WithParameter("@token", token);
-			
-			using (FeedIterator<Token> resultSet = container.GetItemQueryIterator<Token>(query))
-			{
-				if (resultSet.HasMoreResults)
-				{
-					FeedResponse<Token> response = await resultSet.ReadNextAsync();					
-
-					if(response.Count == 1)
-					{
-						var existingToken = response.FirstOrDefault();						
-
-						if (existingToken != null)
-						{
-							if (existingToken.Expires > DateTime.Now)
-							{
-								return true;
-							}
-						}
-					}					
-				}
-			}			
-
-			return false; 
-		}
+		}		
 	}
 }
