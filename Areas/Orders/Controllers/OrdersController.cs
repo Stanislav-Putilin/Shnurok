@@ -344,6 +344,111 @@ namespace shnurok.Areas.Orders.Controllers
 			return restResponse;
 		}
 
+		[HttpPost("removeallitemsfromcart")]
+		public async Task<RestResponse> RemoveAllItemsFromCart([FromBody] string itemId)
+		{
+			RestResponse restResponse = new()
+			{
+				meta = new()
+		{
+			{ "endpoint", "api/orders/removeallitemsfromcart" },
+			{ "time", DateTime.Now.Ticks },
+		}
+			};
+
+			// Проверка заголовка Authorization
+			if (!Request.Headers.TryGetValue("Authorization", out var tokenHeader))
+			{
+				restResponse.status = new Status { code = 5, message = "Токен не найден в заголовке" };
+				return restResponse;
+			}
+
+			var tokenId = tokenHeader.ToString().Split(' ').Last();
+
+			if (string.IsNullOrEmpty(tokenId))
+			{
+				restResponse.status = new Status { code = 8, message = "Пустой токен" };
+				restResponse.data = tokenId;
+				return restResponse;
+			}
+
+			// Проверка токена
+			if (!await _tokenVerificationService.TokenIsValid(tokenId))
+			{
+				restResponse.status = new Status { code = 8, message = "Неверный или отсутствует токен" };
+				restResponse.data = tokenId;
+				return restResponse;
+			}
+
+			// Проверка наличия ID товара
+			if (string.IsNullOrWhiteSpace(itemId))
+			{
+				restResponse.status = new Status { code = 9, message = "Id товара должен быть" };
+				return restResponse;
+			}
+
+			var container = await _containerProvider.GetContainerAsync();
+
+			// Получение пользователя по токену
+			var query = new QueryDefinition("SELECT * FROM c WHERE c.id = @token")
+						.WithParameter("@token", tokenId);
+
+			using (FeedIterator<Token> resultSet = container.GetItemQueryIterator<Token>(query))
+			{
+				if (resultSet.HasMoreResults)
+				{
+					FeedResponse<Token> response = await resultSet.ReadNextAsync();
+					var dbToken = response.FirstOrDefault();
+
+					if (dbToken == null)
+					{
+						restResponse.status = new Status { code = 8, message = "Токен не найден в базе данных" };
+						return restResponse;
+					}
+
+					Guid userId = dbToken.UserId;
+
+					// Получение временной корзины пользователя
+					var cartQuery = new QueryDefinition("SELECT * FROM c WHERE c.customerId = @customerId AND c.partitionKey = 'temporaryCart'")
+							.WithParameter("@customerId", userId);
+
+					using (FeedIterator<TemporaryCart> cartResultSet = container.GetItemQueryIterator<TemporaryCart>(cartQuery))
+					{
+						TemporaryCart? tempCart = null;
+
+						if (cartResultSet.HasMoreResults)
+						{
+							FeedResponse<TemporaryCart> cartResponse = await cartResultSet.ReadNextAsync();
+							tempCart = cartResponse.FirstOrDefault();
+						}
+
+						if (tempCart == null)
+						{
+							restResponse.status = new Status { code = 10, message = "Корзина не найдена" };
+							return restResponse;
+						}
+						else
+						{
+							// Удаление всех вхождений товара из корзины
+							tempCart.Items.RemoveAll(item => item.ProductId == itemId);
+
+							await container.UpsertItemAsync(tempCart, new PartitionKey(tempCart.PartitionKey));
+
+							restResponse.status = new Status { code = 0, message = "товар полностью удален из корзины" };
+							restResponse.data = tempCart;
+						}
+					}
+				}
+				else
+				{
+					restResponse.status = new Status { code = 8, message = "Неверный или отсутствует токен" };
+					return restResponse;
+				}
+			}
+
+			return restResponse;
+		}
+
 		[HttpPost("clearcart")]
 		public async Task<RestResponse> ClearCart()
 		{
