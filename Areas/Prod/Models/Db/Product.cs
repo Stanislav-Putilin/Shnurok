@@ -33,5 +33,11 @@ namespace shnurok.Areas.Prod.Models.Db
 
 		[JsonProperty(PropertyName = "tags")]
 		public List<string> Tags { get; set; }
+
+		[JsonProperty(PropertyName = "updatedAt")]
+		public string UpdatedAt { get; set; }
+
+		[JsonProperty(PropertyName = "createdAt")]
+		public string CreatedAt { get; set; }
 	}
 }

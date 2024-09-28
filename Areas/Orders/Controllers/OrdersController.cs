@@ -9,6 +9,7 @@ using Newtonsoft.Json;
 using shnurok.Models.Db;
 using Azure.Core;
 using shnurok.Areas.Prod.Models.Db;
+using shnurok.Areas.Orders.Models.Form;
 
 namespace shnurok.Areas.Orders.Controllers
 {
@@ -26,72 +27,173 @@ namespace shnurok.Areas.Orders.Controllers
 			_tokenVerificationService = tokenVerificationService;
 		}
 
-		//[HttpPost("createorder")]
-		//public async Task<RestResponse> CreateOrder([FromBody] Order form)
-		//{
-		//	RestResponse restResponse = new()
-		//	{
-		//		meta = new()
-		//		{
-		//			{ "endpoint", "api/orders/createorder" },
-		//			{ "time", DateTime.Now.Ticks },
-		//		}
-		//	};
+		[HttpPost("repeatorder")]
+		public async Task<RestResponse> RepeatOrder(RepeatOrderRequest repeatOrderRequest)
+		{
+			RestResponse restResponse = new()
+			{
+				meta = new()
+		{
+			{ "endpoint", "api/orders/repeatorder" },
+			{ "time", DateTime.Now.Ticks },
+		}
+			};
 
-		//	// Получение токена из заголовка
-		//	if (!Request.Headers.TryGetValue("Authorization", out var tokenHeader))
-		//	{
-		//		restResponse.status = new Status { code = 5, message = "Токен не найден в заголовке" };
-		//		return restResponse;
-		//	}
+			if (!Request.Headers.TryGetValue("Authorization", out var tokenHeader))
+			{
+				restResponse.status = new Status { code = 5, message = "Токен не найден в заголовке" };
+				return restResponse;
+			}
 
-		//	var tokenId = tokenHeader.ToString().Split(' ').Last();
+			var tokenId = tokenHeader.ToString().Split(' ').Last();
 
-		//	// Проверка токена
-		//	if (string.IsNullOrEmpty(tokenId))
-		//	{
-		//		restResponse.status = new Status { code = 8, message = "Пустой токен" };
-		//		restResponse.data = tokenId;
-		//		return restResponse;
-		//	}
+			if (string.IsNullOrEmpty(tokenId))
+			{
+				restResponse.status = new Status { code = 8, message = "Пустой токен" };
+				return restResponse;
+			}
 
-		//	if (!await _tokenVerificationService.TokenIsValid(tokenId))
-		//	{
-		//		restResponse.status = new Status { code = 8, message = "Неверный или отсутствует токен" };
-		//		restResponse.data = tokenId;
-		//		return restResponse;
-		//	}
+			if (!await _tokenVerificationService.TokenIsValid(tokenId))
+			{
+				restResponse.status = new Status { code = 8, message = "Неверный или отсутствует токен" };
+				return restResponse;
+			}
 
-		//	// Проверка формы заказа
-		//	//if (string.IsNullOrWhiteSpace(form.CustomerId) || !form.Items.Any())
-		//	//{
-		//	//	restResponse.status = new Status { code = 9, message = "Заказ должен содержать клиента и хотя бы один товар" };
-		//	//	return restResponse;
-		//	//}
+			var container = await _containerProvider.GetContainerAsync();
 
-		//	// Создание заказа
-		//	form.Id = Guid.NewGuid();
-		//	form.PartitionKey = "orders";
+			var query = new QueryDefinition("SELECT * FROM c WHERE c.id = @token")
+						.WithParameter("@token", tokenId);
 
-		//	var container = await _containerProvider.GetContainerAsync();
+			using (FeedIterator<Token> resultSet = container.GetItemQueryIterator<Token>(query))
+			{
+				if (resultSet.HasMoreResults)
+				{
+					FeedResponse<Token> response = await resultSet.ReadNextAsync();
+					var dbToken = response.FirstOrDefault();
 
-		//	try
-		//	{
-		//		ItemResponse<Order> response = await container.CreateItemAsync(form, new PartitionKey(form.PartitionKey));
-		//		restResponse.status = new Status { code = 0, message = "Заказ успешно создан" };
-		//		restResponse.data = form;
-		//	}
-		//	catch (CosmosException ex)
-		//	{
-		//		restResponse.status = new Status
-		//		{
-		//			code = ex.StatusCode == System.Net.HttpStatusCode.Conflict ? 409 : 500,
-		//			message = ex.Message
-		//		};
-		//	}
+					if (dbToken == null)
+					{
+						restResponse.status = new Status { code = 8, message = "Токен не найден в базе данных" };
+						return restResponse;
+					}
 
-		//	return restResponse;
-		//}
+					Guid userId = dbToken.UserId;
+					
+					if (string.IsNullOrWhiteSpace(repeatOrderRequest.DeliveryAddress))
+					{
+						restResponse.status = new Status { code = 9, message = "Адрес доставки обязателен" };
+						return restResponse;
+					}
+					
+					var userInfoQuery = new QueryDefinition("SELECT * FROM c WHERE c.userId = @userId AND c.partitionKey = 'userAdditionalInfo'")
+						.WithParameter("@userId", userId);
+
+					UserAdditionalInfo? userInfo = null;
+
+					using (FeedIterator<UserAdditionalInfo> userInfoResultSet = container.GetItemQueryIterator<UserAdditionalInfo>(userInfoQuery))
+					{
+						if (userInfoResultSet.HasMoreResults)
+						{
+							FeedResponse<UserAdditionalInfo> userInfoResponse = await userInfoResultSet.ReadNextAsync();
+							userInfo = userInfoResponse.FirstOrDefault();
+						}
+					}
+					
+					if (userInfo == null)
+					{
+						userInfo = new UserAdditionalInfo
+						{
+							Id = Guid.NewGuid(),
+							UserId = userId,
+							Addresses = new List<string> { repeatOrderRequest.DeliveryAddress }
+						};
+
+						await container.CreateItemAsync(userInfo, new PartitionKey(userInfo.PartitionKey));
+					}
+					else
+					{						
+						if (!userInfo.Addresses.Contains(repeatOrderRequest.DeliveryAddress))
+						{
+							userInfo.Addresses.Add(repeatOrderRequest.DeliveryAddress);
+							await container.UpsertItemAsync(userInfo, new PartitionKey(userInfo.PartitionKey));
+						}
+					}
+
+					var orderQuery = new QueryDefinition("SELECT * FROM c WHERE c.id = @orderId AND c.customerId = @customerId AND c.partitionKey = 'orders'")
+						.WithParameter("@orderId", repeatOrderRequest.OrderId)
+						.WithParameter("@customerId", userId);
+
+					using (FeedIterator<Order> orderResultSet = container.GetItemQueryIterator<Order>(orderQuery))
+					{
+						if (orderResultSet.HasMoreResults)
+						{
+							FeedResponse<Order> orderResponse = await orderResultSet.ReadNextAsync();
+							var existingOrder = orderResponse.FirstOrDefault();
+
+							if (existingOrder != null)
+							{
+								var newOrder = new Order
+								{
+									Id = Guid.NewGuid(),
+									CustomerId = userId,
+									Items = existingOrder.Items,
+									DeliveryAddress = repeatOrderRequest.DeliveryAddress,
+									OrderDate = DateTime.UtcNow,
+									Status = "Pending",
+								};
+
+								var productIds = existingOrder.Items.Select(i => i.ProductId).ToList();
+
+								var productQuery = new QueryDefinition("SELECT * FROM c WHERE ARRAY_CONTAINS(@productIds, c.id) AND c.partitionKey = 'products'")
+									.WithParameter("@productIds", productIds);
+
+								List<Product> products = new List<Product>();
+
+								using (FeedIterator<Product> productResultSet = container.GetItemQueryIterator<Product>(productQuery))
+								{
+									while (productResultSet.HasMoreResults)
+									{
+										FeedResponse<Product> productResponse = await productResultSet.ReadNextAsync();
+										products.AddRange(productResponse);
+									}
+								}
+
+								newOrder.TotalAmount = newOrder.Items.Sum(item =>
+								{
+									var product = products.FirstOrDefault(p => p.Id.ToString() == item.ProductId);
+
+									if (product != null)
+									{
+										return item.Quantity * product.Price;
+									}
+
+									return 0;
+								});
+
+								await container.CreateItemAsync(newOrder, new PartitionKey(newOrder.PartitionKey));
+
+								restResponse.status = new Status { code = 0, message = "Заказ успешно повторен" };
+								restResponse.data = newOrder;
+							}
+							else
+							{
+								restResponse.status = new Status { code = 10, message = "Заказ не найден" };
+							}
+						}
+						else
+						{
+							restResponse.status = new Status { code = 10, message = "Заказ не найден" };
+						}
+					}
+				}
+				else
+				{
+					restResponse.status = new Status { code = 8, message = "Неверный или отсутствует токен" };
+				}
+			}
+
+			return restResponse;
+		}
 
 		[HttpPost("additemfromcart")]
 		public async Task<RestResponse> AddItemFromCart([FromBody] string itemId)
@@ -678,6 +780,145 @@ namespace shnurok.Areas.Orders.Controllers
 				{
 					restResponse.status = new Status { code = 8, message = "Неверный или отсутствует токен" };
 					return restResponse;
+				}
+			}
+
+			return restResponse;
+		}
+
+		[HttpGet("getorders")]
+		public async Task<RestResponse> GetOrders()
+		{
+			RestResponse restResponse = new()
+			{
+				meta = new()
+		{
+			{ "endpoint", "api/orders/getorders" },
+			{ "time", DateTime.Now.Ticks },
+		}
+			};
+
+			if (!Request.Headers.TryGetValue("Authorization", out var tokenHeader))
+			{
+				restResponse.status = new Status { code = 5, message = "Токен не найден в заголовке" };
+				return restResponse;
+			}
+
+			var tokenId = tokenHeader.ToString().Split(' ').Last();
+
+			if (string.IsNullOrEmpty(tokenId))
+			{
+				restResponse.status = new Status { code = 8, message = "Пустой токен" };
+				restResponse.data = tokenId;
+				return restResponse;
+			}
+
+			if (!await _tokenVerificationService.TokenIsValid(tokenId))
+			{
+				restResponse.status = new Status { code = 8, message = "Неверный или отсутствует токен" };
+				restResponse.data = tokenId;
+				return restResponse;
+			}
+
+			var container = await _containerProvider.GetContainerAsync();
+
+			var query = new QueryDefinition("SELECT * FROM c WHERE c.id = @token")
+						.WithParameter("@token", tokenId);
+
+			using (FeedIterator<Token> resultSet = container.GetItemQueryIterator<Token>(query))
+			{
+				if (resultSet.HasMoreResults)
+				{
+					FeedResponse<Token> response = await resultSet.ReadNextAsync();
+					var dbToken = response.FirstOrDefault();
+
+					if (dbToken == null)
+					{
+						restResponse.status = new Status { code = 8, message = "Токен не найден в базе данных" };
+						return restResponse;
+					}
+
+					Guid userId = dbToken.UserId;
+					
+					var ordersQuery = new QueryDefinition("SELECT * FROM c WHERE c.customerId = @customerId AND c.partitionKey = 'orders'")
+						.WithParameter("@customerId", userId);
+
+					using (FeedIterator<Order> ordersResultSet = container.GetItemQueryIterator<Order>(ordersQuery))
+					{
+						List<object> userOrders = new List<object>();
+
+						while (ordersResultSet.HasMoreResults)
+						{
+							FeedResponse<Order> ordersResponse = await ordersResultSet.ReadNextAsync();
+							foreach (var order in ordersResponse)
+							{
+								var itemsWithProducts = new List<object>();
+								
+								foreach (var item in order.Items)
+								{
+									var productQuery = new QueryDefinition("SELECT * FROM c WHERE c.id = @productId AND c.partitionKey = 'products'")
+										.WithParameter("@productId", item.ProductId);
+
+									using (FeedIterator<Product> productResultSet = container.GetItemQueryIterator<Product>(productQuery))
+									{
+										if (productResultSet.HasMoreResults)
+										{
+											FeedResponse<Product> productResponse = await productResultSet.ReadNextAsync();
+											var product = productResponse.FirstOrDefault();
+
+											if (product != null)
+											{
+												var productInfo = new
+												{
+													product.Id,
+													product.Name,
+													product.Description,
+													product.Price,
+													product.Discount,
+													product.Category,
+													product.StockQuantity,
+													product.Images,
+													product.Tags
+												};
+
+												itemsWithProducts.Add(new
+												{
+													Product = productInfo,
+													Quantity = item.Quantity
+												});
+											}
+										}
+									}
+								}
+
+								var orderInfo = new
+								{
+									order.Id,
+									order.CustomerId,
+									order.OrderDate,
+									order.Status,
+									order.TotalAmount,
+									Items = itemsWithProducts
+								};
+
+								userOrders.Add(orderInfo);
+							}
+						}
+
+						if (userOrders.Count > 0)
+						{
+							restResponse.status = new Status { code = 0, message = "Заказы успешно получены" };
+							restResponse.data = userOrders; 
+						}
+						else
+						{
+							restResponse.status = new Status { code = 10, message = "Заказы не найдены" };
+						}
+					}
+				}
+				else
+				{
+					restResponse.status = new Status { code = 8, message = "Неверный или отсутствует токен" };
 				}
 			}
 

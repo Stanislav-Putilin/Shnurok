@@ -26,7 +26,7 @@ namespace shnurok.Areas.Prod.Controllers
 			{
 				meta = new Dictionary<string, object>
 				{
-					{ "endpoint", "api/prod/products" },
+					{ "endpoint", "api/prod/allproducts" },
 					{ "time", DateTime.Now.Ticks },
 				}
 			};
