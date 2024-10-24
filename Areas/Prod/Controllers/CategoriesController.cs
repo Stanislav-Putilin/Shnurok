@@ -86,10 +86,10 @@ namespace shnurok.Areas.Prod.Controllers
 			var restResponse = new RestResponse
 			{
 				meta = new Dictionary<string, object>
-		{
-			{ "endpoint", $"api/prod/categories/{categoryId}" },
-			{ "time", DateTime.Now.Ticks },
-		}
+				{
+					{ "endpoint", $"api/prod/categories/{categoryId}" },
+					{ "time", DateTime.Now.Ticks },
+				}
 			};
 
 			var query = new QueryDefinition("SELECT c.categoryId, c.name, c.description FROM c WHERE c.id = @categoryId AND c.partitionKey = 'categories'")
@@ -177,7 +177,7 @@ namespace shnurok.Areas.Prod.Controllers
 				}
 			}
 
-			Category newCategory = new(Guid.NewGuid().ToString(), form.Name, form.Description, form.ImgUrl);
+			Category newCategory = new(Guid.NewGuid(), form.Name, form.Description, form.ImgUrl);
 			
 			try
 			{

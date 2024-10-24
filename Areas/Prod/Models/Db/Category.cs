@@ -5,7 +5,7 @@ namespace shnurok.Areas.Prod.Models.Db
 	public class Category
 	{
 		[JsonProperty(PropertyName = "id")]
-		public string Id { get; set; }
+		public Guid Id { get; set; }
 
 		[JsonProperty(PropertyName = "name")]
 		public string Name { get; set; }
@@ -19,7 +19,7 @@ namespace shnurok.Areas.Prod.Models.Db
 		[JsonProperty(PropertyName = "partitionKey")]
 		public String PartitionKey { get; set; } = "categories";
 
-		public Category(string id, string name, string description, string imgUrl)
+		public Category(Guid id, string name, string description, string imgUrl)
 		{
 			Id = id;
 			Name = name;
