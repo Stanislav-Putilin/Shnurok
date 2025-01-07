@@ -11,7 +11,7 @@ namespace shnurok.Areas.Prod.Models.Db
 		public string Name { get; set; }
 
 		[JsonProperty(PropertyName = "imgUrl")]
-		public string ImgUrl { get; set; }
+		public List<string>? ImgUrl { get; set; }
 
 		[JsonProperty(PropertyName = "description")]
 		public string Description { get; set; }
@@ -19,12 +19,13 @@ namespace shnurok.Areas.Prod.Models.Db
 		[JsonProperty(PropertyName = "partitionKey")]
 		public String PartitionKey { get; set; } = "categories";
 
-		public Category(Guid id, string name, string description, string imgUrl)
-		{
-			Id = id;
-			Name = name;
-			ImgUrl = imgUrl;
-			Description = description;
-		}
+		[JsonProperty(PropertyName = "createdAt")]
+		public DateTime? CreatedAt { get; set; }
+
+		[JsonProperty(PropertyName = "deletedAt")]
+		public DateTime? DeletedAt { get; set; }
+
+		[JsonProperty(PropertyName = "slug")]
+		public string Slug { get; set; }		
 	}
 }

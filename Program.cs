@@ -1,4 +1,5 @@
 using shnurok.Services.CosmosDb;
+using shnurok.Services.Dropbox;
 using shnurok.Services.Hash;
 using shnurok.Services.Kdf;
 using shnurok.Services.Token;
@@ -19,7 +20,9 @@ namespace shnurok
 			builder.Services.AddSwaggerGen();
 
 			builder.Configuration.AddJsonFile("azuresettings.json");
-
+			builder.Configuration.AddJsonFile("dropboxsettings.json");
+			
+			builder.Services.AddSingleton<IContainerImagesProvider, DropboxContainerImagesProvider>();
 			builder.Services.AddSingleton<IContainerProvider, NoSqlContainerProvider>();
 			builder.Services.AddSingleton<IHashService, Sha1HashService>();
 			builder.Services.AddSingleton<IKdfService, Pbkdf1Service>();
@@ -37,10 +40,11 @@ namespace shnurok
 
 			app.UseHttpsRedirection();
 
+			app.UseCors(options => options.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
 			app.UseAuthorization();
 
 			app.MapControllers();
-			app.UseCors(options => options.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+			
 
 			app.Run();
 		}
