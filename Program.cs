@@ -45,7 +45,6 @@ namespace shnurok
 
 			app.MapControllers();
 			
-
 			app.Run();
 		}
 	}
